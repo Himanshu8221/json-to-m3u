@@ -1,68 +1,67 @@
 import requests
+import json
 
-# 🔗 Add your JSON playlist URLs here
+# 🔼 Add your URLs (can be .json, .php, etc.)
 JSON_URLS = [
     "https://allinonereborn.fun/jstrweb2/index.php",
-    "https://raw.githubusercontent.com/Himanshu8221/m3u-to-json/refs/heads/main/playlist.json"
+    "https://raw.githubusercontent.com/himanshu-temp/Z-playlist/refs/heads/main/Zee.m3u"
 ]
 
-# 📁 Output M3U filename
-OUTPUT_FILE = "playlist.m3u"
-
-
-def fetch_json_from_url(url):
+def fetch_channels(url):
     try:
         response = requests.get(url)
         response.raise_for_status()
-        return response.json()
+        data = response.json()
+
+        # Support nested data in case .php returns {"channels": [...]}
+        if isinstance(data, dict) and "channels" in data:
+            return data["channels"]
+        elif isinstance(data, list):
+            return data
+        else:
+            return []
     except Exception as e:
-        print(f"❌ Failed to fetch or parse JSON from {url}: {e}")
+        print(f"❌ Failed to fetch or parse {url}: {e}")
         return []
 
+def convert_to_m3u(channels):
+    m3u_lines = ['#EXTM3U']
+    for channel in channels:
+        name = channel.get("display-name") or channel.get("name", "Unknown")
+        url = channel.get("url")
+        if not url:
+            continue
 
-def convert_json_list_to_m3u(json_list, output_file="playlist.m3u"):
-    with open(output_file, "w", encoding="utf-8") as f:
-        f.write("#EXTM3U\n")
+        tvg_id = channel.get("tvg-id", "")
+        tvg_name = channel.get("tvg-name", name)
+        tvg_logo = channel.get("tvg-logo", "")
+        group = channel.get("group-title", "Others")
 
-        for ch in json_list:
-            url = ch.get("url")
-            if not url:
-                continue
+        # Kodi props
+        props = []
+        if "user_agent" in channel:
+            props.append(f'#KODIPROP:user-agent={channel["user_agent"]}')
+        if "license_key" in channel:
+            props.append(f'#KODIPROP:inputstream.adaptive.license_key={channel["license_key"]}')
+        if "cookie" in channel:
+            props.append(f'#KODIPROP:cookie={channel["cookie"]}')
 
-            name = ch.get("display-name") or ch.get("name") or "Untitled"
-            tvg_id = ch.get("tvg-id", "")
-            tvg_name = ch.get("tvg-name", "")
-            tvg_logo = ch.get("tvg-logo", "")
-            group = ch.get("group-title", "")
-            user_agent = ch.get("user_agent")
-            license_key = ch.get("license_key")
-            cookie = ch.get("cookie")
-
-            # Write KODIPROP metadata
-            if user_agent:
-                f.write(f"#KODIPROP:inputstream.adaptive.user_agent={user_agent}\n")
-            if license_key:
-                f.write(f"#KODIPROP:inputstream.adaptive.license_key={license_key}\n")
-            if cookie:
-                f.write(f"#KODIPROP:http-cookie={cookie}\n")
-
-            # Write EXTINF
-            f.write(f'#EXTINF:-1 tvg-id="{tvg_id}" tvg-name="{tvg_name}" tvg-logo="{tvg_logo}" group-title="{group}",{name}\n')
-            f.write(url + "\n")
-
-    print(f"✅ Final merged M3U saved as: {output_file}")
-
+        # EXTINF line
+        extinf = f'#EXTINF:-1 tvg-id="{tvg_id}" tvg-name="{tvg_name}" tvg-logo="{tvg_logo}" group-title="{group}", {name}'
+        m3u_lines.extend(props + [extinf, url])
+    
+    return "\n".join(m3u_lines)
 
 def main():
     all_channels = []
-
     for url in JSON_URLS:
-        print(f"📥 Fetching: {url}")
-        channels = fetch_json_from_url(url)
+        channels = fetch_channels(url)
         all_channels.extend(channels)
 
-    convert_json_list_to_m3u(all_channels, OUTPUT_FILE)
-
+    m3u_output = convert_to_m3u(all_channels)
+    with open("playlist.m3u", "w", encoding="utf-8") as f:
+        f.write(m3u_output)
+    print(f"✅ M3U playlist saved as playlist.m3u with {len(all_channels)} channels")
 
 if __name__ == "__main__":
     main()
