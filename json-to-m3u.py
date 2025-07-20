@@ -1,97 +1,97 @@
 import requests
 import time
+import json
 
-# Configurable input URLs (add .json or .php URLs here)
+# === INPUT SECTION (EDIT THESE) ===
 JSON_URLS = [
     "https://allinonereborn.fun/jstrweb2/index.php",
     "https://raw.githubusercontent.com/himanshu-temp/Z-playlist/refs/heads/main/Zee.m3u"
 ]
+output_file = "playlist.m3u"
+request_timeout = 5  # seconds
+delay_between_requests = 1  # seconds
 
-OUTPUT_M3U = "merged_playlist.m3u"
-TIMEOUT = 10  # seconds
-RETRY_WAIT = 3  # wait between retries
 
-def fetch_json(url):
-    try:
-        response = requests.get(url, timeout=TIMEOUT)
-        response.raise_for_status()
-        return response.json()
-    except Exception as e:
-        print(f"[❌] Error loading {url}: {e}")
-        return []
-
-def convert_channel_to_m3u(channel):
-    name = channel.get("name") or channel.get("display-name", "Unknown")
+# === MAIN CONVERSION FUNCTION ===
+def convert_channel_to_m3u_entry(channel):
+    name = channel.get("name", "Unknown")
     logo = channel.get("logo", "")
-    group = channel.get("category") or channel.get("group-title", "Others")
-    tvg_id = channel.get("tvg-id", "")
-    tvg_name = channel.get("tvg-name", name)
-    stream_url = channel.get("url") or channel.get("mpd")
+    group = channel.get("category", "Others")
+    stream_url = channel.get("mpd") or channel.get("url") or channel.get("stream") or ""
 
     if not stream_url:
-        return None  # skip empty URLs
+        return None  # skip if no playable URL
 
-    # Append token if available
     token = channel.get("token", "")
-    if token and "?" not in stream_url:
-        stream_url += "?" + token
-    elif token:
-        stream_url += "&" + token
-
-    # DRM + headers
-    license_key = ""
-    drm = channel.get("drm", {})
-    if isinstance(drm, dict) and drm:
-        for key, value in drm.items():
-            license_key = f"https://license-url.com/{key}|{value}|R{'\n'}"
-
     user_agent = channel.get("userAgent", "")
     referer = channel.get("referer", "")
-    cookie = channel.get("cookie", "")
+    drm = channel.get("drm", {})
 
-    extinf = f'#EXTINF:-1 tvg-id="{tvg_id}" tvg-name="{tvg_name}" tvg-logo="{logo}" group-title="{group}",{name}'
+    # Construct stream with appended token if needed
+    if token and token not in stream_url:
+        stream_url += f"?{token}" if "?" not in stream_url else f"&{token}"
 
-    # KODIPROP block for DRM streams
-    kodiprop = ""
-    if license_key:
-        kodiprop += f'#KODIPROP:inputstream.adaptive.license_type=com.widevine.alpha\n'
-        kodiprop += f'#KODIPROP:inputstream.adaptive.license_key={license_key}\n'
+    # Start building M3U entry
+    m3u = f'#EXTINF:-1 tvg-logo="{logo}" group-title="{group}", {name}\n'
+
+    # Add Kodi props
     if user_agent:
-        kodiprop += f'#KODIPROP:http-user-agent={user_agent}\n'
+        m3u += f'#KODIPROP:user-agent={user_agent}\n'
     if referer:
-        kodiprop += f'#KODIPROP:referer={referer}\n'
-    if cookie:
-        kodiprop += f'#KODIPROP:cookie={cookie}\n'
+        m3u += f'#KODIPROP:inputstream.adaptive.license_key={referer}\n'
+    if drm:
+        for key, value in drm.items():
+            m3u += f'#KODIPROP:inputstream.adaptive.license_type=com.widevine.alpha\n'
+            m3u += f'#KODIPROP:inputstream.adaptive.license_key=https://license-server.com/{key}|{value}|R\n'
 
-    return f"{kodiprop}{extinf}\n{stream_url}"
+    # Add the final stream URL
+    m3u += stream_url + "\n"
+    return m3u
 
-def main():
-    print("📥 Fetching channels from all sources...\n")
-    all_channels = []
 
-    for url in JSON_URLS:
-        print(f"🔗 Loading: {url}")
-        time.sleep(RETRY_WAIT)
-        data = fetch_json(url)
-        if isinstance(data, list):
-            all_channels.extend(data)
-        elif isinstance(data, dict) and "channels" in data:
-            all_channels.extend(data["channels"])
-        else:
-            print(f"⚠️ Unexpected format in {url}")
+# === URL FETCHER WITH MERGE ===
+def fetch_all_channels(urls):
+    merged_channels = []
+    for url in urls:
+        print(f"Fetching: {url}")
+        try:
+            resp = requests.get(url, timeout=request_timeout)
+            if resp.status_code == 200:
+                data = resp.json()
+                if isinstance(data, dict):
+                    channels = data.get("channels") or data.get("data") or []
+                elif isinstance(data, list):
+                    channels = data
+                else:
+                    print(f"⚠️ Skipped: Unknown structure at {url}")
+                    continue
+                if channels:
+                    merged_channels.extend(channels)
+                    print(f"✅ Fetched {len(channels)} channels from {url}")
+                else:
+                    print(f"⚠️ No channels found in {url}")
+            else:
+                print(f"❌ Failed to fetch {url} (Status {resp.status_code})")
+        except Exception as e:
+            print(f"❌ Error fetching {url}: {e}")
+        time.sleep(delay_between_requests)
+    return merged_channels
 
-    print(f"\n✅ Total channels fetched: {len(all_channels)}")
 
-    lines = ["#EXTM3U"]
-    for channel in all_channels:
-        line = convert_channel_to_m3u(channel)
-        if line:
-            lines.append(line)
+# === M3U GENERATOR ===
+def generate_m3u(channels, output_path):
+    print(f"\nWriting to: {output_path}")
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write("#EXTM3U\n")
+        for channel in channels:
+            m3u_entry = convert_channel_to_m3u_entry(channel)
+            if m3u_entry:
+                f.write(m3u_entry)
+    print("✅ M3U generation completed.")
 
-    with open(OUTPUT_M3U, "w", encoding="utf-8") as f:
-        f.write("\n".join(lines))
 
-    print(f"\n🎉 M3U playlist created: {OUTPUT_M3U}")
-
+# === RUN SCRIPT ===
 if __name__ == "__main__":
-    main()
+    print("🔄 Starting JSON to M3U conversion...")
+    all_channels = fetch_all_channels(input_urls)
+    generate_m3u(all_channels, output_file)
