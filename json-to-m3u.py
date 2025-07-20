@@ -4,8 +4,8 @@ import time
 
 # ✅ Input URLs at the top
 input_urls = [
-    "https://allinonereborn.fun/jstrweb2/index.php",
-    "https://raw.githubusercontent.com/himanshu-temp/Z-playlist/refs/heads/main/Zee.m3u"
+    "https://example.com/channels.json"
+    #add as much as links you want
 ]
 
 # ✅ Output M3U file
