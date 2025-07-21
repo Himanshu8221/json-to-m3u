@@ -4,7 +4,8 @@ import time
 
 # ✅ Input URLs at the top
 input_urls = [
-    "https://example.com/channels.json"
+    "https://example.com/channels.json",
+    "https://raw.githubusercontent.com/Himanshu8221/m3u-to-json/refs/heads/main/playlist.json"
     #add as much as links you want
 ]
 
