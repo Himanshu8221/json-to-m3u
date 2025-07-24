@@ -4,7 +4,7 @@ import time
 
 # ✅ Input URLs at the top
 input_urls = [
-    "https://example.com/channels.json",
+    "https://allinonereborn.space/jstrweb2/index.php",
     #add as much as links you want
 ]
 
