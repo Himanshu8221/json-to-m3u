@@ -4,7 +4,7 @@ import time
 
 # ✅ Input URLs at the top
 input_urls = [
-    "https://allinonereborn.space/jstrweb2/index.php",
+    "https://example.cpm/index.json",
     #add as much as links you want
 ]
 
