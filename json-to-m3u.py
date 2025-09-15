@@ -4,7 +4,8 @@ import time
 
 # ✅ Input URLs at the top
 input_urls = [
-    "https://example.cpm/index.json",
+    #"https://example.cpm/index.json", 
+    "https://raw.githubusercontent.com/yuvraj824/zee5/refs/heads/main/data.json",
     #add as much as links you want
 ]
 
